@@ -24,7 +24,6 @@ type RunningEntry struct {
 	SessionID        string
 	ThreadID         string
 	TurnID           string
-	AppServerPID     int
 	LastEvent        string
 	LastEventAt      time.Time
 	LastMessage      string
