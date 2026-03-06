@@ -3,7 +3,6 @@ package server
 import (
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"log/slog"
 	"net"
 	"net/http"
@@ -142,26 +141,26 @@ var dashboardTmpl = template.Must(template.New("dashboard").Parse(`<!DOCTYPE htm
 <head><title>Symphony Dashboard</title></head>
 <body>
 <h1>Symphony Dashboard</h1>
-<h2>Running ({{len .Running}})</h2>
+<h2>Running (%d)</h2>
 <ul>
-{{range .Running}}<li>{{.IssueIdentifier}} - {{.LastEvent}} - turns: {{.TurnCount}} - tokens: {{.TotalTokens}}</li>
-{{end}}</ul>
-<h2>Retries ({{len .Retries}})</h2>
+`, len(snap.Running))
+	for _, e := range snap.Running {
+		fmt.Fprintf(w, "<li>%s - %s - turns: %d - tokens: %d</li>\n",
+			e.IssueIdentifier, e.LastEvent, e.TurnCount, e.TotalTokens)
+	}
+	fmt.Fprintf(w, `</ul>
+<h2>Retries (%d)</h2>
 <ul>
-{{range .Retries}}<li>{{.Identifier}} - attempt {{.Attempt}} - due: {{.DueAtMs}}</li>
-{{end}}</ul>
+`, len(snap.Retries))
+	for _, r := range snap.Retries {
+		fmt.Fprintf(w, "<li>%s - attempt %d - due: %d</li>\n", r.Identifier, r.Attempt, r.DueAtMs)
+	}
+	fmt.Fprintf(w, `</ul>
 <h2>Totals</h2>
-<p>Input tokens: {{.Totals.InputTokens}} | Output tokens: {{.Totals.OutputTokens}} | Total tokens: {{.Totals.TotalTokens}} | Seconds running: {{printf "%.1f" .Totals.SecondsRunning}}</p>
+<p>Input tokens: %d | Output tokens: %d | Total tokens: %d | Seconds running: %.1f</p>
 </body>
 </html>
-`))
-
-func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
-	snap := s.orch.Snapshot()
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := dashboardTmpl.Execute(w, snap); err != nil {
-		slog.Warn("render dashboard failed", "error", err)
-	}
+`, snap.Totals.InputTokens, snap.Totals.OutputTokens, snap.Totals.TotalTokens, snap.Totals.SecondsRunning)
 }
 
 func writeJSON(w http.ResponseWriter, v any) {
