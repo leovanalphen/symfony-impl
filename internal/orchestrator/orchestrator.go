@@ -349,8 +349,6 @@ func (o *Orchestrator) handleEvent(ctx context.Context, ev agent.RunnerEvent) {
 			entry.CancelFn()
 		}
 		delete(o.running, ev.IssueID)
-		// Schedule normal exit retry after 1000ms
-		o.scheduleRetry(ev.IssueID, ev.IssueIdentifier, 0, "")
 
 	case agent.RunnerEventFailed:
 		entry.LastEvent = "failed"
