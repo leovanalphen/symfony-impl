@@ -124,6 +124,32 @@ func (c *AppServerClient) Run(ctx context.Context, threadID, prompt string) (Run
 	scanner := bufio.NewScanner(stdout)
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 
+	// Single reader goroutine: reads lines from the scanner and sends them to
+	// lineCh. This prevents concurrent scanner access that would occur if each
+	// readMsg call spawned its own goroutine.
+	type scanResult struct {
+		line string
+		err  error
+	}
+	lineCh := make(chan scanResult, 1)
+	go func() {
+		for scanner.Scan() {
+			select {
+			case lineCh <- scanResult{line: scanner.Text()}:
+			case <-ctx.Done():
+				return
+			}
+		}
+		err := scanner.Err()
+		if err == nil {
+			err = io.EOF
+		}
+		select {
+		case lineCh <- scanResult{err: err}:
+		case <-ctx.Done():
+		}
+	}()
+
 	sendMsg := func(msg jsonRPCRequest) error {
 		b, err := json.Marshal(msg)
 		if err != nil {
@@ -135,26 +161,10 @@ func (c *AppServerClient) Run(ctx context.Context, threadID, prompt string) (Run
 	}
 
 	readMsg := func(timeoutMs int) (*jsonRPCResponse, error) {
-		type scanResult struct {
-			line string
-			err  error
-		}
-		ch := make(chan scanResult, 1)
-		go func() {
-			if scanner.Scan() {
-				ch <- scanResult{line: scanner.Text()}
-			} else {
-				err := scanner.Err()
-				if err == nil {
-					err = io.EOF
-				}
-				ch <- scanResult{err: err}
-			}
-		}()
 		select {
 		case <-time.After(time.Duration(timeoutMs) * time.Millisecond):
 			return nil, fmt.Errorf("read timeout after %dms", timeoutMs)
-		case r := <-ch:
+		case r := <-lineCh:
 			if r.err != nil {
 				return nil, r.err
 			}
