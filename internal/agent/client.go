@@ -154,6 +154,9 @@ func (c *AppServerClient) Run(ctx context.Context, threadID, prompt string) (Run
 		select {
 		case lineCh <- scanResult{err: err}:
 		case <-ctx.Done():
+		default:
+			// If the channel buffer is full and the context is not canceled,
+			// avoid blocking forever by exiting without sending the terminal error.
 		}
 	}()
 
