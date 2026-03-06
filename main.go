@@ -40,7 +40,11 @@ func main() {
 	orch := orchestrator.New(cfg, wfDef)
 
 	// file watcher
-	absPath, _ := filepath.Abs(*workflowPath)
+	absPath, aerr := filepath.Abs(*workflowPath)
+	if aerr != nil {
+		slog.Warn("could not resolve absolute workflow path, falling back to original", "path", *workflowPath, "error", aerr)
+		absPath = *workflowPath
+	}
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		slog.Warn("could not create file watcher", "error", err)
