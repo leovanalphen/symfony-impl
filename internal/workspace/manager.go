@@ -33,7 +33,7 @@ func checkSafety(root, path string) error {
 	if err != nil {
 		return err
 	}
-	if !strings.HasPrefix(absPath, absRoot+string(filepath.Separator)) {
+	if !strings.HasPrefix(absPath+string(filepath.Separator), absRoot+string(filepath.Separator)) {
 		return fmt.Errorf("workspace path %q is not under root %q", absPath, absRoot)
 	}
 	return nil
