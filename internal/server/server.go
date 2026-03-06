@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"log/slog"
 	"net"
 	"net/http"
@@ -55,24 +56,26 @@ func (s *Server) Start() error {
 	return srv.Serve(ln)
 }
 
+// runningInfo is a JSON-safe projection of RunningEntry (omits CancelFn).
+type runningInfo struct {
+	IssueID         string    `json:"issue_id"`
+	IssueIdentifier string    `json:"issue_identifier"`
+	IssueState      string    `json:"issue_state"`
+	SessionID       string    `json:"session_id"`
+	ThreadID        string    `json:"thread_id"`
+	TurnID          string    `json:"turn_id"`
+	LastEvent       string    `json:"last_event"`
+	LastEventAt     time.Time `json:"last_event_at"`
+	LastMessage     string    `json:"last_message"`
+	TurnCount       int       `json:"turn_count"`
+	StartedAt       time.Time `json:"started_at"`
+	InputTokens     int64     `json:"input_tokens"`
+	OutputTokens    int64     `json:"output_tokens"`
+	TotalTokens     int64     `json:"total_tokens"`
+}
+
 func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 	snap := s.orch.Snapshot()
-	type runningInfo struct {
-		IssueID         string    `json:"issue_id"`
-		IssueIdentifier string    `json:"issue_identifier"`
-		IssueState      string    `json:"issue_state"`
-		SessionID       string    `json:"session_id"`
-		ThreadID        string    `json:"thread_id"`
-		TurnID          string    `json:"turn_id"`
-		LastEvent       string    `json:"last_event"`
-		LastEventAt     time.Time `json:"last_event_at"`
-		LastMessage     string    `json:"last_message"`
-		TurnCount       int       `json:"turn_count"`
-		StartedAt       time.Time `json:"started_at"`
-		InputTokens     int64     `json:"input_tokens"`
-		OutputTokens    int64     `json:"output_tokens"`
-		TotalTokens     int64     `json:"total_tokens"`
-	}
 	type retryInfo struct {
 		IssueID    string `json:"issue_id"`
 		Identifier string `json:"identifier"`
@@ -129,7 +132,22 @@ func (s *Server) handleIssue(w http.ResponseWriter, r *http.Request) {
 	snap := s.orch.Snapshot()
 	for _, e := range snap.Running {
 		if strings.EqualFold(e.IssueIdentifier, identifier) {
-			writeJSON(w, e)
+			writeJSON(w, runningInfo{
+				IssueID:         e.IssueID,
+				IssueIdentifier: e.IssueIdentifier,
+				IssueState:      e.IssueState,
+				SessionID:       e.SessionID,
+				ThreadID:        e.ThreadID,
+				TurnID:          e.TurnID,
+				LastEvent:       e.LastEvent,
+				LastEventAt:     e.LastEventAt,
+				LastMessage:     e.LastMessage,
+				TurnCount:       e.TurnCount,
+				StartedAt:       e.StartedAt,
+				InputTokens:     e.InputTokens,
+				OutputTokens:    e.OutputTokens,
+				TotalTokens:     e.TotalTokens,
+			})
 			return
 		}
 	}
@@ -149,14 +167,14 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 `, len(snap.Running))
 	for _, e := range snap.Running {
 		fmt.Fprintf(w, "<li>%s - %s - turns: %d - tokens: %d</li>\n",
-			e.IssueIdentifier, e.LastEvent, e.TurnCount, e.TotalTokens)
+			html.EscapeString(e.IssueIdentifier), html.EscapeString(e.LastEvent), e.TurnCount, e.TotalTokens)
 	}
 	fmt.Fprintf(w, `</ul>
 <h2>Retries (%d)</h2>
 <ul>
 `, len(snap.Retries))
 	for _, r := range snap.Retries {
-		fmt.Fprintf(w, "<li>%s - attempt %d - due: %d</li>\n", r.Identifier, r.Attempt, r.DueAtMs)
+		fmt.Fprintf(w, "<li>%s - attempt %d - due: %d</li>\n", html.EscapeString(r.Identifier), r.Attempt, r.DueAtMs)
 	}
 	fmt.Fprintf(w, `</ul>
 <h2>Totals</h2>

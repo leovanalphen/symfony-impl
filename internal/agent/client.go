@@ -161,26 +161,10 @@ func (c *AppServerClient) Run(ctx context.Context, threadID, prompt string) (Run
 	}
 
 	readMsg := func(timeoutMs int) (*jsonRPCResponse, error) {
-		type scanResult struct {
-			line string
-			err  error
-		}
-		ch := make(chan scanResult, 1)
-		go func() {
-			if scanner.Scan() {
-				ch <- scanResult{line: scanner.Text()}
-			} else {
-				err := scanner.Err()
-				if err == nil {
-					err = io.EOF
-				}
-				ch <- scanResult{err: err}
-			}
-		}()
 		select {
 		case <-time.After(time.Duration(timeoutMs) * time.Millisecond):
 			return nil, fmt.Errorf("read timeout after %dms", timeoutMs)
-		case r := <-ch:
+		case r := <-lineCh:
 			if r.err != nil {
 				return nil, r.err
 			}
